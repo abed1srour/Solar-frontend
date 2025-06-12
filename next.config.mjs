@@ -1,6 +1,7 @@
-/** @type {import('next').NextConfig} */ 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // ❌ Do NOT include this:
+  // output: 'export',
 };
 
 export default nextConfig;
