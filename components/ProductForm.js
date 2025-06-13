@@ -343,6 +343,18 @@ export default function ProductForm({ mode, initialData = {} }) {
             </div>
           </div>
           
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows={4}
+              className="w-full py-3 px-4 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="Describe the product's features and specifications..."
+            />
+          </div>
+
           <div className="flex justify-end gap-4">
             <button
               type="button"
