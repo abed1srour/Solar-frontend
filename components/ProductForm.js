@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Save, Camera, X } from 'lucide-react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 const categories = ['Panel', 'Inverter', 'Battery'];
 
@@ -12,6 +13,8 @@ export default function ProductForm({ mode, initialData = {} }) {
   const [preview, setPreview] = useState(initialData.imageUrl || '');
   const [showScanner, setShowScanner] = useState(false);
   const scannerRef = useRef(null);
+  const videoRef = useRef(null);
+  const [scanning, setScanning] = useState(false);
 
   const [formData, setFormData] = useState({
     name: initialData.name || '',
@@ -28,32 +31,26 @@ export default function ProductForm({ mode, initialData = {} }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let scanner;
+    let codeReader;
     if (showScanner) {
-      import('html5-qrcode').then(({ Html5Qrcode }) => {
-        scanner = new Html5Qrcode('reader');
-        scannerRef.current = scanner;
-        scanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            setFormData((prev) => ({
-              ...prev,
-              barcode: decodedText,
-            }));
-            stopScanner();
-          },
-          (errorMessage) => {}
-        );
-      });
+      codeReader = new BrowserMultiFormatReader();
+      codeReader
+        .listVideoInputDevices()
+        .then((videoInputDevices) => {
+          const selectedDeviceId = videoInputDevices[0]?.deviceId;
+          codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+            if (result) {
+              setFormData((prev) => ({ ...prev, barcode: result.getText() }));
+              stopScanner();
+              codeReader.reset();
+            }
+          });
+        });
+      setScanning(true);
     }
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().then(() => {
-          scannerRef.current.clear();
-          scannerRef.current = null;
-        });
-      }
+      if (codeReader) codeReader.reset();
+      setScanning(false);
     };
     // eslint-disable-next-line
   }, [showScanner]);
@@ -364,7 +361,7 @@ export default function ProductForm({ mode, initialData = {} }) {
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-white">Scan Barcode</h3>
+              <h3 className="text-xl font-semibold text-white">Scan Barcode or QR Code</h3>
               <button
                 onClick={stopScanner}
                 className="text-gray-400 hover:text-white"
@@ -372,7 +369,8 @@ export default function ProductForm({ mode, initialData = {} }) {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div id="reader" className="w-full"></div>
+            <video ref={videoRef} className="w-full rounded" autoPlay muted playsInline />
+            {scanning && <div className="text-gray-400 text-center mt-2">Point your camera at a barcode or QR code</div>}
           </div>
         </div>
       )}

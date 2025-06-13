@@ -154,6 +154,17 @@ export default function Sidebar({ selected, setSelected, isSidebarOpen, setIsSid
                   <span>All Products</span>
                   {pathname.includes('/products/list') && <ChevronRight size={16} className="ml-auto" />}
                 </button>
+                <button
+                  onClick={() => router.push('/products/barcodes')}
+                  className={`w-full flex items-center gap-3 text-sm font-medium px-3 py-2.5 rounded-lg transition-all
+                              ${pathname.includes('/products/barcodes') 
+                                ? 'bg-orange-500 text-black' 
+                                : 'text-gray-300 hover:bg-gray-800/70 hover:text-white'}`}
+                >
+                  <Package size={18} className={pathname.includes('/products/barcodes') ? 'text-black' : 'text-gray-400'} />
+                  <span>Barcodes</span>
+                  {pathname.includes('/products/barcodes') && <ChevronRight size={16} className="ml-auto" />}
+                </button>
               </nav>
             </div>
           </div>

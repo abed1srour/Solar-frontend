@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Camera, X } from 'lucide-react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 export default function ProductCard({ product, onDelete }) {
   const [selectedPriceType, setSelectedPriceType] = useState('customer');
@@ -10,33 +11,30 @@ export default function ProductCard({ product, onDelete }) {
   const [imageError, setImageError] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const scannerRef = useRef(null);
+  const videoRef = useRef(null);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
-    let scanner;
+    let codeReader;
     if (showScanner) {
-      import('html5-qrcode').then(({ Html5Qrcode }) => {
-        scanner = new Html5Qrcode('reader');
-        scannerRef.current = scanner;
-        scanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            if (decodedText === product.barcode) {
+      codeReader = new BrowserMultiFormatReader();
+      codeReader
+        .listVideoInputDevices()
+        .then((videoInputDevices) => {
+          const selectedDeviceId = videoInputDevices[0]?.deviceId;
+          codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+            if (result && result.getText() === product.barcode) {
               onDelete(product._id);
+              stopScanner();
+              codeReader.reset();
             }
-            stopScanner();
-          },
-          (errorMessage) => {}
-        );
-      });
+          });
+        });
+      setScanning(true);
     }
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().then(() => {
-          scannerRef.current.clear();
-          scannerRef.current = null;
-        });
-      }
+      if (codeReader) codeReader.reset();
+      setScanning(false);
     };
     // eslint-disable-next-line
   }, [showScanner]);
@@ -202,7 +200,7 @@ export default function ProductCard({ product, onDelete }) {
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-white">Scan Barcode to Delete</h3>
+              <h3 className="text-xl font-semibold text-white">Scan Barcode or QR Code to Delete</h3>
               <button
                 onClick={stopScanner}
                 className="text-gray-400 hover:text-white"
@@ -210,7 +208,8 @@ export default function ProductCard({ product, onDelete }) {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div id="reader" className="w-full"></div>
+            <video ref={videoRef} className="w-full rounded" autoPlay muted playsInline />
+            {scanning && <div className="text-gray-400 text-center mt-2">Point your camera at a barcode or QR code</div>}
           </div>
         </div>
       )}
