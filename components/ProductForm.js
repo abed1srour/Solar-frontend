@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Save } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Save, Camera, X } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const categories = ['Panel', 'Inverter', 'Battery'];
 
@@ -10,6 +11,8 @@ export default function ProductForm({ mode, initialData = {} }) {
   const router = useRouter();
   const [errors, setErrors] = useState({});
   const [preview, setPreview] = useState(initialData.imageUrl || '');
+  const [showScanner, setShowScanner] = useState(false);
+  const scannerRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: initialData.name || '',
@@ -19,10 +22,61 @@ export default function ProductForm({ mode, initialData = {} }) {
     originalPrice: initialData.originalPrice?.toString() || '',
     category: initialData.category || 'Panel',
     imageUrl: initialData.imageUrl || '',
-    stock: initialData.stock?.toString() || '10'
+    stock: initialData.stock?.toString() || '10',
+    barcode: initialData.barcode || ''
   });
 
   const [loading, setLoading] = useState(false);
+
+  const startScanner = async () => {
+    setShowScanner(true);
+    try {
+      const scanner = new Html5Qrcode("reader");
+      scannerRef.current = scanner;
+      
+      await scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText) => {
+          setFormData(prev => ({
+            ...prev,
+            barcode: decodedText
+          }));
+          stopScanner();
+        },
+        (errorMessage) => {
+          // Ignore errors
+        }
+      );
+    } catch (err) {
+      console.error("Error starting scanner:", err);
+      stopScanner();
+    }
+  };
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current = null;
+        setShowScanner(false);
+      }).catch(err => {
+        console.error("Error stopping scanner:", err);
+        setShowScanner(false);
+      });
+    }
+  };
+
+  // Cleanup scanner when component unmounts
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        stopScanner();
+      }
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -94,7 +148,6 @@ export default function ProductForm({ mode, initialData = {} }) {
     
     setLoading(true);
     try {
-      // Use Render backend URL
       const apiUrl = 'https://solar-backend-opi8.onrender.com';
       const endpoint = mode === 'edit'
         ? `${apiUrl}/api/products/${initialData._id}`
@@ -115,7 +168,8 @@ export default function ProductForm({ mode, initialData = {} }) {
           originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : null,
           category: formData.category,
           imageUrl: formData.imageUrl,
-          stock: parseInt(formData.stock)
+          stock: parseInt(formData.stock),
+          barcode: formData.barcode
         })
       });
 
@@ -237,6 +291,27 @@ export default function ProductForm({ mode, initialData = {} }) {
                 />
                 {errors.stock && <p className="mt-1 text-sm text-red-500">{errors.stock}</p>}
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Barcode</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="barcode"
+                    value={formData.barcode}
+                    onChange={handleChange}
+                    className="flex-1 py-3 px-4 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Scan or enter barcode"
+                  />
+                  <button
+                    type="button"
+                    onClick={startScanner}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                  >
+                    <Camera className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
             </div>
             
             <div className="space-y-6">
@@ -253,62 +328,58 @@ export default function ProductForm({ mode, initialData = {} }) {
                 {errors.imageUrl && <p className="mt-1 text-sm text-red-500">{errors.imageUrl}</p>}
               </div>
               
-              <div className="aspect-square bg-gray-700 rounded-lg border border-gray-600 overflow-hidden flex items-center justify-center">
-                {preview ? (
-                  <img 
-                    src={preview} 
-                    alt="Product preview" 
-                    className="w-full h-full object-contain p-4"
-                    onError={() => setPreview('')}
-                  />
-                ) : (
-                  <div className="text-gray-500 text-center p-4">
-                    <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p>Image preview will appear here</p>
+              {preview && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Image Preview</label>
+                  <div className="relative h-64 bg-gray-900 rounded-lg overflow-hidden">
+                    <img
+                      src={preview}
+                      alt="Preview"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows="4"
-              className="w-full py-3 px-4 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Describe the product's features and specifications..."
-            />
-          </div>
-          
-          <div className="flex justify-between pt-4 border-t border-gray-700">
+          <div className="flex justify-end gap-4">
             <button
               type="button"
-              onClick={() => router.push('/products/list')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              onClick={() => router.back()}
+              className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
             >
-              <ArrowLeft size={18} />
-              Back to List
+              <ArrowLeft className="h-5 w-5 inline-block mr-2" />
+              Back
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-black font-medium rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save size={18} />
-              {loading
-                ? 'Saving...'
-                : mode === 'edit'
-                ? 'Update Product'
-                : 'Add Product'}
+              <Save className="h-5 w-5 inline-block mr-2" />
+              {loading ? 'Saving...' : 'Save Product'}
             </button>
           </div>
         </form>
       </div>
+
+      {showScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-white">Scan Barcode</h3>
+              <button
+                onClick={stopScanner}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div id="reader" className="w-full"></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

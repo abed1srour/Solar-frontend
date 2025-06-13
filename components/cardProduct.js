@@ -1,12 +1,65 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { Camera, X } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, onDelete }) {
   const [selectedPriceType, setSelectedPriceType] = useState('customer');
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const scannerRef = useRef(null);
+
+  const startScanner = async () => {
+    setShowScanner(true);
+    try {
+      const scanner = new Html5Qrcode("reader");
+      scannerRef.current = scanner;
+      
+      await scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText) => {
+          if (decodedText === product.barcode) {
+            onDelete(product._id);
+          }
+          stopScanner();
+        },
+        (errorMessage) => {
+          // Ignore errors
+        }
+      );
+    } catch (err) {
+      console.error("Error starting scanner:", err);
+      stopScanner();
+    }
+  };
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current = null;
+        setShowScanner(false);
+      }).catch(err => {
+        console.error("Error stopping scanner:", err);
+        setShowScanner(false);
+      });
+    }
+  };
+
+  // Cleanup scanner when component unmounts
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        stopScanner();
+      }
+    };
+  }, []);
 
   // Get the current price based on selection
   const getCurrentPrice = () => {
@@ -114,6 +167,17 @@ export default function ProductCard({ product }) {
           </button>
         </div>
 
+        {/* Barcode Section */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-400">Barcode: {product.barcode || 'Not set'}</span>
+          <button
+            onClick={startScanner}
+            className="px-3 py-1 bg-orange-500 text-black rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+          >
+            <Camera className="h-4 w-4" />
+          </button>
+        </div>
+
         {/* Pricing */}
         <div className="space-y-1">
           <div className="flex items-center">
@@ -149,6 +213,23 @@ export default function ProductCard({ product }) {
           {product.description}
         </p>
       </div>
+
+      {showScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-white">Scan Barcode to Delete</h3>
+              <button
+                onClick={stopScanner}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div id="reader" className="w-full"></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
