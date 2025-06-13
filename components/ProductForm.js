@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Save, Camera, X } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
 
 const categories = ['Panel', 'Inverter', 'Battery'];
 
@@ -28,55 +27,40 @@ export default function ProductForm({ mode, initialData = {} }) {
 
   const [loading, setLoading] = useState(false);
 
-  const startScanner = async () => {
-    setShowScanner(true);
-    try {
-      const scanner = new Html5Qrcode("reader");
-      scannerRef.current = scanner;
-      
-      await scanner.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
-        },
-        (decodedText) => {
-          setFormData(prev => ({
-            ...prev,
-            barcode: decodedText
-          }));
-          stopScanner();
-        },
-        (errorMessage) => {
-          // Ignore errors
-        }
-      );
-    } catch (err) {
-      console.error("Error starting scanner:", err);
-      stopScanner();
-    }
-  };
-
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().then(() => {
-        scannerRef.current = null;
-        setShowScanner(false);
-      }).catch(err => {
-        console.error("Error stopping scanner:", err);
-        setShowScanner(false);
+  useEffect(() => {
+    let scanner;
+    if (showScanner) {
+      import('html5-qrcode').then(({ Html5Qrcode }) => {
+        scanner = new Html5Qrcode('reader');
+        scannerRef.current = scanner;
+        scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            setFormData((prev) => ({
+              ...prev,
+              barcode: decodedText,
+            }));
+            stopScanner();
+          },
+          (errorMessage) => {}
+        );
       });
     }
-  };
-
-  // Cleanup scanner when component unmounts
-  useEffect(() => {
     return () => {
       if (scannerRef.current) {
-        stopScanner();
+        scannerRef.current.stop().then(() => {
+          scannerRef.current.clear();
+          scannerRef.current = null;
+        });
       }
     };
-  }, []);
+    // eslint-disable-next-line
+  }, [showScanner]);
+
+  const stopScanner = () => {
+    setShowScanner(false);
+  };
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -305,7 +289,7 @@ export default function ProductForm({ mode, initialData = {} }) {
                   />
                   <button
                     type="button"
-                    onClick={startScanner}
+                    onClick={() => setShowScanner(true)}
                     className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-800"
                   >
                     <Camera className="h-5 w-5" />
