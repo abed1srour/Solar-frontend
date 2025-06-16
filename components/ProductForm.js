@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Save, Camera, X } from 'lucide-react';
-import { BrowserMultiFormatReader } from '@zxing/browser';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const categories = ['Panel', 'Inverter', 'Battery'];
 
@@ -31,46 +31,52 @@ export default function ProductForm({ mode, initialData = {} }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let codeReader;
+    let html5QrCode;
     if (showScanner) {
-      codeReader = new BrowserMultiFormatReader();
-      codeReader
-        .listVideoInputDevices()
-        .then((videoInputDevices) => {
-          const selectedDeviceId = videoInputDevices[0]?.deviceId;
-          codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
-            if (result) {
-              const scannedValue = result.getText();
-              setFormData((prev) => ({ ...prev, barcode: scannedValue }));
-              
+      const qrRegionId = 'qr-reader';
+      html5QrCode = new Html5Qrcode(qrRegionId);
+      Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+          html5QrCode.start(
+            cameras[0].id,
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 }
+            },
+            (decodedText, decodedResult) => {
+              setFormData((prev) => ({ ...prev, barcode: decodedText }));
               // Save the barcode to the database
               fetch('https://solar-backend-opi8.onrender.com/api/barcodes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                  value: scannedValue,
+                  value: decodedText,
                   label: formData.name || 'Product Barcode'
                 })
               }).catch(error => console.error('Error saving barcode:', error));
-
               stopScanner();
-              codeReader.reset();
+              html5QrCode.stop().then(() => html5QrCode.clear());
+            },
+            (errorMessage) => {
+              // Optionally handle scan errors
             }
-            if (err && !(err instanceof Error)) {
-              console.error('Scanning error:', err);
-            }
+          ).catch(err => {
+            alert('Unable to start the camera.');
+            stopScanner();
           });
-        })
-        .catch(err => {
-          console.error('Error accessing camera:', err);
-          alert('Error accessing camera. Please make sure you have granted camera permissions.');
+        } else {
+          alert('No camera found.');
           stopScanner();
-        });
+        }
+      }).catch(err => {
+        alert('Camera access error.');
+        stopScanner();
+      });
       setScanning(true);
     }
     return () => {
-      if (codeReader) {
-        codeReader.reset();
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => html5QrCode.clear());
       }
       setScanning(false);
     };
@@ -390,7 +396,7 @@ export default function ProductForm({ mode, initialData = {} }) {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <video ref={videoRef} className="w-full rounded" autoPlay muted playsInline />
+            <div id="qr-reader" style={{ width: '100%' }} />
             {scanning && <div className="text-gray-400 text-center mt-2">Point your camera at a barcode or QR code</div>}
           </div>
         </div>
