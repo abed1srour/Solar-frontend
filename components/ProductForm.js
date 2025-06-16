@@ -40,20 +40,41 @@ export default function ProductForm({ mode, initialData = {} }) {
           const selectedDeviceId = videoInputDevices[0]?.deviceId;
           codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
             if (result) {
-              setFormData((prev) => ({ ...prev, barcode: result.getText() }));
+              const scannedValue = result.getText();
+              setFormData((prev) => ({ ...prev, barcode: scannedValue }));
+              
+              // Save the barcode to the database
+              fetch('https://solar-backend-opi8.onrender.com/api/barcodes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  value: scannedValue,
+                  label: formData.name || 'Product Barcode'
+                })
+              }).catch(error => console.error('Error saving barcode:', error));
+
               stopScanner();
               codeReader.reset();
             }
+            if (err && !(err instanceof Error)) {
+              console.error('Scanning error:', err);
+            }
           });
+        })
+        .catch(err => {
+          console.error('Error accessing camera:', err);
+          alert('Error accessing camera. Please make sure you have granted camera permissions.');
+          stopScanner();
         });
       setScanning(true);
     }
     return () => {
-      if (codeReader) codeReader.reset();
+      if (codeReader) {
+        codeReader.reset();
+      }
       setScanning(false);
     };
-    // eslint-disable-next-line
-  }, [showScanner]);
+  }, [showScanner, formData.name]);
 
   const stopScanner = () => {
     setShowScanner(false);

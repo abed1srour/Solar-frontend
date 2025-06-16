@@ -23,21 +23,35 @@ export default function ProductCard({ product, onDelete }) {
         .then((videoInputDevices) => {
           const selectedDeviceId = videoInputDevices[0]?.deviceId;
           codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
-            if (result && result.getText() === product.barcode) {
-              onDelete(product._id);
-              stopScanner();
-              codeReader.reset();
+            if (result) {
+              const scannedValue = result.getText();
+              if (scannedValue === product.barcode) {
+                onDelete(product._id);
+                stopScanner();
+                codeReader.reset();
+              } else {
+                alert('Scanned barcode does not match this product');
+              }
+            }
+            if (err && !(err instanceof Error)) {
+              console.error('Scanning error:', err);
             }
           });
+        })
+        .catch(err => {
+          console.error('Error accessing camera:', err);
+          alert('Error accessing camera. Please make sure you have granted camera permissions.');
+          stopScanner();
         });
       setScanning(true);
     }
     return () => {
-      if (codeReader) codeReader.reset();
+      if (codeReader) {
+        codeReader.reset();
+      }
       setScanning(false);
     };
-    // eslint-disable-next-line
-  }, [showScanner]);
+  }, [showScanner, product.barcode, product._id, onDelete]);
 
   const stopScanner = () => {
     setShowScanner(false);
