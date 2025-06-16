@@ -103,11 +103,13 @@ export default function Sidebar({ selected, setSelected, isSidebarOpen, setIsSid
             {/* Dashboard Link */}
             <div className="px-3 mb-2">
               <button
-                onClick={() => router.push('/products/Panel')}
-                className="w-full flex items-center gap-3 text-sm font-medium px-3 py-2.5 rounded-lg text-white hover:bg-gray-800/70 transition-all"
+                onClick={() => router.push('/')}
+                className={`w-full flex items-center gap-3 text-sm font-medium px-3 py-2.5 rounded-lg transition-all
+                  ${pathname === '/' ? 'bg-orange-500 text-black' : 'text-white hover:bg-gray-800/70'}`}
               >
-                <Home size={18} className="text-gray-400" />
+                <Home size={18} className={pathname === '/' ? 'text-black' : 'text-gray-400'} />
                 <span>Dashboard</span>
+                {pathname === '/' && <ChevronRight size={16} className="ml-auto" />}
               </button>
             </div>
             
