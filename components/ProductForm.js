@@ -15,6 +15,10 @@ export default function ProductForm({ mode, initialData = {} }) {
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
   const [scanning, setScanning] = useState(false);
+  const [qrPool, setQrPool] = useState(initialData.qrPool || []);
+  const [showAddQrScanner, setShowAddQrScanner] = useState(false);
+  const [showRemoveQrScanner, setShowRemoveQrScanner] = useState(false);
+  const [qrActionLoading, setQrActionLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     name: initialData.name || '',
@@ -192,6 +196,123 @@ export default function ProductForm({ mode, initialData = {} }) {
       setLoading(false);
     }
   };
+
+  // Fetch latest qrPool if in edit mode
+  useEffect(() => {
+    if (mode === 'edit' && initialData._id) {
+      fetch(`https://solar-backend-opi8.onrender.com/api/products/${initialData._id}`)
+        .then(res => res.json())
+        .then(data => setQrPool(data.qrPool || []));
+    }
+  }, [mode, initialData._id]);
+
+  // Add QR to pool handler
+  const handleAddQr = async (qr) => {
+    setQrActionLoading(true);
+    try {
+      const res = await fetch(`https://solar-backend-opi8.onrender.com/api/products/${initialData._id}/qr-pool/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr })
+      });
+      if (!res.ok) throw new Error('Failed to add QR');
+      const updated = await res.json();
+      setQrPool(updated.qrPool);
+    } catch (err) {
+      alert('Failed to add QR: ' + err.message);
+    } finally {
+      setQrActionLoading(false);
+      setShowAddQrScanner(false);
+    }
+  };
+
+  // Remove QR from pool handler
+  const handleRemoveQr = async (qr) => {
+    setQrActionLoading(true);
+    try {
+      const res = await fetch(`https://solar-backend-opi8.onrender.com/api/products/${initialData._id}/qr-pool/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr })
+      });
+      if (!res.ok) throw new Error('Failed to remove QR');
+      const updated = await res.json();
+      setQrPool(updated.qrPool);
+    } catch (err) {
+      alert('Failed to remove QR: ' + err.message);
+    } finally {
+      setQrActionLoading(false);
+      setShowRemoveQrScanner(false);
+    }
+  };
+
+  // Scanner for adding QR
+  useEffect(() => {
+    let html5QrCode;
+    if (showAddQrScanner) {
+      const qrRegionId = 'qr-add-reader';
+      html5QrCode = new Html5Qrcode(qrRegionId);
+      Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+          html5QrCode.start(
+            cameras[0].id,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              handleAddQr(decodedText);
+              html5QrCode.stop().then(() => html5QrCode.clear());
+            },
+            () => {}
+          ).catch(() => {
+            alert('Unable to start the camera.');
+            setShowAddQrScanner(false);
+          });
+        } else {
+          alert('No camera found.');
+          setShowAddQrScanner(false);
+        }
+      }).catch(() => {
+        alert('Camera access error.');
+        setShowAddQrScanner(false);
+      });
+    }
+    return () => {
+      if (html5QrCode) html5QrCode.stop().then(() => html5QrCode.clear());
+    };
+  }, [showAddQrScanner]);
+
+  // Scanner for removing QR
+  useEffect(() => {
+    let html5QrCode;
+    if (showRemoveQrScanner) {
+      const qrRegionId = 'qr-remove-reader';
+      html5QrCode = new Html5Qrcode(qrRegionId);
+      Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+          html5QrCode.start(
+            cameras[0].id,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              handleRemoveQr(decodedText);
+              html5QrCode.stop().then(() => html5QrCode.clear());
+            },
+            () => {}
+          ).catch(() => {
+            alert('Unable to start the camera.');
+            setShowRemoveQrScanner(false);
+          });
+        } else {
+          alert('No camera found.');
+          setShowRemoveQrScanner(false);
+        }
+      }).catch(() => {
+        alert('Camera access error.');
+        setShowRemoveQrScanner(false);
+      });
+    }
+    return () => {
+      if (html5QrCode) html5QrCode.stop().then(() => html5QrCode.clear());
+    };
+  }, [showRemoveQrScanner]);
 
   return (
     <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
@@ -398,6 +519,87 @@ export default function ProductForm({ mode, initialData = {} }) {
             </div>
             <div id="qr-reader" style={{ width: '100%' }} />
             {scanning && <div className="text-gray-400 text-center mt-2">Point your camera at a barcode or QR code</div>}
+          </div>
+        </div>
+      )}
+
+      {/* QR Pool Management UI (only in edit mode) */}
+      {mode === 'edit' && initialData._id && (
+        <div className="mt-8 p-4 bg-gray-900 rounded-lg border border-gray-700">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-lg font-semibold text-white">QR Pool (Stock: {qrPool.length})</h4>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddQrScanner(true)}
+                className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                disabled={qrActionLoading}
+              >
+                + Scan QR to Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRemoveQrScanner(true)}
+                className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                disabled={qrActionLoading}
+              >
+                - Scan QR to Remove
+              </button>
+            </div>
+          </div>
+          <ul className="divide-y divide-gray-800 max-h-40 overflow-y-auto">
+            {qrPool.length === 0 && <li className="text-gray-400 py-2">No QR codes in pool.</li>}
+            {qrPool.map(qr => (
+              <li key={qr} className="flex items-center justify-between py-2">
+                <span className="text-white font-mono text-xs">{qr}</span>
+                <button
+                  type="button"
+                  className="px-2 py-1 bg-red-700 text-white rounded text-xs hover:bg-red-800"
+                  onClick={() => handleRemoveQr(qr)}
+                  disabled={qrActionLoading}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Add QR Scanner Modal */}
+      {showAddQrScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-white">Scan QR to Add</h3>
+              <button
+                onClick={() => setShowAddQrScanner(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div id="qr-add-reader" style={{ width: '100%' }} />
+            {qrActionLoading && <div className="text-gray-400 text-center mt-2">Processing...</div>}
+          </div>
+        </div>
+      )}
+
+      {/* Remove QR Scanner Modal */}
+      {showRemoveQrScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-white">Scan QR to Remove</h3>
+              <button
+                onClick={() => setShowRemoveQrScanner(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div id="qr-remove-reader" style={{ width: '100%' }} />
+            {qrActionLoading && <div className="text-gray-400 text-center mt-2">Processing...</div>}
           </div>
         </div>
       )}
